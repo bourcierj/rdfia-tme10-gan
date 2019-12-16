@@ -16,7 +16,8 @@ import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 import torchvision.utils as vutils
 
-# from utils import *
+from gans import Generator, Discriminator, init_weights
+
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 if device.type == 'cuda':
@@ -38,23 +39,44 @@ def get_dataloader(batch_size, num_workers):
 
     return dataloader
 
-# from utils import *
+
+def get_noise(batch_size, dim):
+    """Defines the prior of z.
+    Returns:
+        (torch.Tensor): a Gaussian random tensor with mean 0 and variance 1.
+    """
+    noise = torch.randn(batch_size, dim, 1, 1)
+    return noise.to(device)
+
 
 def main(args):
 
-
     loader = get_dataloader(args.batch_size, args.workers)
 
-    # plot some training images
-    real_batch = next(iter(loader))
-    plt.figure(figsize=(10,10))
-    plt.axis('off')
-    plt.title('Training Images Sample')
-    plt.imshow(np.transpose(vutils.make_grid(real_batch[0][:64], padding=2,
-                                             normalize=True), (1, 2, 0)))
-    plt.show()
+    # # plot some training images
+    # real_batch = next(iter(loader))
+    # plt.figure(figsize=(10,10))
+    # plt.axis('off')
+    # plt.title('Training Images Sample')
+    # plt.imshow(np.transpose(vutils.make_grid(real_batch[0][:64], padding=2,
+    #                                          normalize=True), (1, 2, 0)))
+    # plt.show()
     print(args)
-    return
+
+    net_G = Generator(args.latent_dim, args.num_feature_maps_G)
+    net_D = Discriminator(args.num_feature_maps_D)
+    # initialize the weights of the networks
+    net_G.apply(init_weights)
+    net_D.apply(init_weights)
+
+    # create the criterion function for the discriminator:
+    # binary-cross entropy loss
+    criterion = nn.BCELoss()
+    # create optimizers
+    optimizer_G = optim.Adam(net_G.parameters(), lr=args.lr_G,
+                             betas=(args.beta1_G, 0.999))
+    optimizer_D = optim.Adam(net_D.parameters(), lr=args.lr_D,
+                             betas=(args.beta1_D, 0.999))
 
 
 if __name__ == '__main__':
@@ -67,7 +89,7 @@ if __name__ == '__main__':
     args.latent_dim = 100
     # base size of feature maps in discriminator / generator
     args.num_feature_maps_D = 32
-    args.num_features_maps_G = 32
+    args.num_feature_maps_G = 32
     # learning rate for the discriminator / generator
     args.lr_D = 0.0002
     args.lr_G = 0.0002
