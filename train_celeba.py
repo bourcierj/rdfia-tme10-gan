@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 import random
 import numpy as np
+import matplotlib.pyplot as plt
 
 import torch
 import torch.nn as nn
@@ -12,14 +13,46 @@ import torch.backends.cudnn as cudnn
 import torch.optim as optim
 import torch.utils.data
 import torchvision.datasets as datasets
-import torchvision.transforms as T
+import torchvision.transforms as transforms
 import torchvision.utils as vutils
 
 # from utils import *
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+if device.type == 'cuda':
+    cudnn.benchmark = True
+
+def get_dataloader(batch_size, num_workers):
+
+    tfms = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    ])
+    dataset = datasets.ImageFolder(root='data/celeba', transform=tfms)
+
+    dataloader = torch.utils.data.DataLoader(
+        dataset, batch_size=batch_size, shuffle=True,
+        pin_memory=device.type == 'cuda',
+        num_workers=num_workers if num_workers is not None \
+            else torch.multiprocessing.cpu_count())
+
+    return dataloader
+
+# from utils import *
 
 def main(args):
 
+
+    loader = get_dataloader(args.batch_size, args.workers)
+
+    # plot some training images
+    real_batch = next(iter(loader))
+    plt.figure(figsize=(10,10))
+    plt.axis('off')
+    plt.title('Training Images Sample')
+    plt.imshow(np.transpose(vutils.make_grid(real_batch[0][:64], padding=2,
+                                             normalize=True), (1, 2, 0)))
+    plt.show()
     print(args)
     return
 
