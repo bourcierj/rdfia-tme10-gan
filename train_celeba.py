@@ -29,6 +29,7 @@ def get_dataloader(batch_size, num_workers):
         transforms.ToTensor(),
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     ])
+    # we can use an image folder dataset
     dataset = datasets.ImageFolder(root='data/celeba', transform=tfms)
 
     dataloader = torch.utils.data.DataLoader(
@@ -41,7 +42,7 @@ def get_dataloader(batch_size, num_workers):
 
 
 def get_noise(batch_size, dim):
-    """Defines the prior of z.
+    """Defines the prior probability of z.
     Returns:
         (torch.Tensor): a Gaussian random tensor with mean 0 and variance 1.
     """
@@ -49,9 +50,54 @@ def get_noise(batch_size, dim):
     return noise.to(device)
 
 
+class DataSupplier():
+    """Class used to provide batches of real and fake images for training GANs."""
+    REAL_LABEL = 1
+    FAKE_LABEL = 0
+
+    def __init__(self, dataloader, net_G):
+        self.dataloader = dataloader
+        self.batch_size = dataloader.batch_size
+        self.net_G = net_G
+        self.latent_dim = net_G.latent_dim
+        self.iterator = iter(dataloader)
+
+    def get_batch_real(self):
+        """Returns a batch of real images from the dataloader and training targets
+        (iterates infinitely on the dataloader).
+        Returns:
+            torch.Tensor: tensor data
+            torch.Tensor: tensor target vector
+        """
+        try:
+            data_real, _ = next(self.iterator)
+        except StopIteration:
+            self.iterator = iter(self.dataloader)
+            data_real, _ = next(self.iterator)
+
+        target_real = torch.full((data_real.size(0),), self.REAL_LABEL)
+        return data_real.to(device), target_real.to(device)
+
+    def get_batch_fake(self, train_G=False):
+        """Returns a batch of generated images and training targets.
+        Returns:
+            torch.Tensor: tensor data
+            torch.Tensor: tensor target vector
+        """
+        z = get_noise(self.batch_size, self.latent_dim)
+        data_fake = self.net_G(z)
+        if not train_G:
+            target_fake = torch.full((data_fake.size(0),), self.FAKE_LABEL)
+        else:
+            # if we train the generator G, then set training targets to real to
+            # to fool the discriminator D.
+            target_fake = torch.full((data_fake.size(0),), self.REAL_LABEL)
+        return data_fake, target_fake
+
+
 def main(args):
 
-    loader = get_dataloader(args.batch_size, args.workers)
+    dataloader = get_dataloader(args.batch_size, args.workers)
 
     # # plot some training images
     # real_batch = next(iter(loader))
@@ -77,6 +123,19 @@ def main(args):
                              betas=(args.beta1_G, 0.999))
     optimizer_D = optim.Adam(net_D.parameters(), lr=args.lr_D,
                              betas=(args.beta1_D, 0.999))
+
+    supplier = DataSupplier(dataloader, net_G)
+    data_real, target_real = supplier.get_batch_real()
+    print(f"Real batch: {tuple(data_real.size())} -> {tuple(target_real.size())}")
+    data_fake, target_fake = supplier.get_batch_fake()
+    print(f"Fake batch (for training D): {tuple(data_fake.size())} -> "
+          f"{tuple(target_fake.size())}")
+    data_fake, target_fake = supplier.get_batch_fake(True)
+    print(f"Fake batch (for training G): {tuple(data_fake.size())} -> "
+          f"{tuple(target_fake.size())}")
+
+    # create a random noise vector, will be used during training for visualization
+    FIXED_NOISE = get_noise(196, args.latent_dim)
 
 
 if __name__ == '__main__':
