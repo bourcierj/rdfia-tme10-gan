@@ -9,6 +9,7 @@ class Discriminator(nn.Module):
     """
     def __init__(self, num_channels_in=32):
         super(Discriminator, self).__init__()
+        self.num_channels_in = num_channels_in
         ndf = num_channels_in
         self.model = nn.Sequential(
             nn.Conv2d(3, ndf, 4, stride=2, padding=1, bias=False),
@@ -35,6 +36,8 @@ class Generator(nn.Module):
     """
     def __init__(self, latent_dim=100, num_channels_out=32):
         super(Generator, self).__init__()
+        self.latent_dim = latent_dim
+        self.num_channels_out = num_channels_out
         ngf = num_channels_out
         self.model = nn.Sequential(
             nn.ConvTranspose2d(latent_dim, 4*ngf, 4, stride=1, padding=0, bias=False),
