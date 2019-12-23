@@ -23,6 +23,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 if device.type == 'cuda':
     cudnn.benchmark = True
 
+
 def get_dataloader(batch_size, num_workers):
 
     tfms = transforms.Compose([
@@ -95,6 +96,103 @@ class DataSupplier():
         return data_fake, target_fake
 
 
+def train(net_G, net_D, optimizer_G, optimizer_D, criterion, data_supplier, steps, num_updates_D,
+          num_updates_G, writer=None):
+    """Full training loop."""
+
+    print("Training on", 'GPU' if device.type == 'cuda' else 'CPU')
+    images_list = []
+    G_losses = []
+    D_losses = []
+    # the minimum generator G loss
+    min_G_loss = float('inf')
+    step = 1
+    # create a random noise vector, will be used during training for visualization
+    FIXED_NOISE = get_noise(196, args.latent_dim)
+    tic = time.time()  # start time
+    # global counter value to record for G / D in tensorboard
+    global_cnt_G = 1
+    global_cnt_D = 1
+
+    for step in range(1, steps+1):
+
+        for _ in range(num_updates_D):
+            # update the discriminator network D:
+            # maximize log(D(x)) + log(1 - D(G(z)))
+            net_D.zero_grad()
+            # get batches
+            data_real, target_real = data_supplier.get_batch_real()
+            data_fake, target_fake = data_supplier.get_batch_fake(False)
+            # forward pass
+            out_real = net_D(data_real).view(-1)
+            out_fake = net_D(data_fake).view(-1)
+            # sum of criterions on real and fake samples
+            loss_D = criterion(out_real, target_real) + criterion(out_fake, target_fake)
+            # backward pass and parameters update
+            loss_D.backward()
+            optimizer_D.step()
+            optimizer_D.zero_grad()
+
+            # compute and save metrics, log to tensorboard
+            avg_output_real = out_real.mean().item()
+            avg_output_fake = out_fake.mean().item()
+            D_losses.append(loss_D.item())
+            if writer:
+                writer.add_scalar("Loss_D", loss_D.item(), global_cnt_G)
+                writer.add_scalar("Mean_Real_D(x)", avg_output_real, global_cnt_G)
+                writer.add_scalar("Mean_Fake_D(G(z))", avg_output_fake, global_cnt_G)
+            global_cnt_G += 1
+
+        for _ in range(num_updates_G):
+            # update the generator network G:
+            # maximize log(D(G(z)))
+            net_G.zero_grad()
+            # get batches
+            data_fake, target_fake = data_supplier.get_batch_fake(True)
+            # forward pass
+            out_fake = net_D(data_fake).view(-1)
+            # criterion
+            loss_G = criterion(out_fake, target_fake)
+            # backward pass and parameters update
+            loss_G.backward()
+            optimizer_G.step()
+            optimizer_G.zero_grad()
+
+            # compute and save metrics, log to tensorboard
+            G_losses.append(loss_G.item())
+            if writer:
+                writer.add_scalar("Loss_G", loss_G.item(), global_cnt_D)
+            global_cnt_D += 1
+
+        if (step-1) % 25 == 0:
+            # log training metrics
+            print("[{:5d}/{:5d}]\tLoss_D: {:.4f}\tLoss_G: {:.4f}\tD(x): {:.4f}\tD(G(z)): {:.4f}"
+                  .format(step, steps, loss_D.item(), loss_G.item(), avg_output_real,
+                          avg_output_fake))
+        if (step-1) % 100 == 0:
+            # generate images from the fixed noise
+            with torch.no_grad():
+                data_fake = net_G(FIXED_NOISE).detach().cpu()
+            images_list.append(vutils.make_grid(data_fake, padding=2, normalize=True,
+                                                nrow=14))
+            if writer:
+                writer.add_image('Generated', data_fake, step)
+            # plt.figure(figsize=(8,8))
+            # plt.imshow(np.transpose(images_list[-1], (1, 2, 0)))
+            # plt.axis('off')
+            # plt.show()
+
+    print("\n======> Done. Total time {:d}s\t".format(time.time() - tic))
+    return G_losses, D_losses
+
+
+def train_from_checkpoint(checkpoint, **kwargs):
+    """Train from an existing checkpoint."""
+    net_G, net_D = checkpoint.net_G, checkpoint.net_D
+    optimizer_G, optimizer_D = checkpoint.optimizer_G, checkpoint.optimizer_D
+    return train(net_G, net_D, optimizer_G, optimizer_D, **kwargs)
+
+
 def main(args):
 
     dataloader = get_dataloader(args.batch_size, args.workers)
@@ -125,17 +223,17 @@ def main(args):
                              betas=(args.beta1_D, 0.999))
 
     supplier = DataSupplier(dataloader, net_G)
-    data_real, target_real = supplier.get_batch_real()
-    print(f"Real batch: {tuple(data_real.size())} -> {tuple(target_real.size())}")
-    data_fake, target_fake = supplier.get_batch_fake()
-    print(f"Fake batch (for training D): {tuple(data_fake.size())} -> "
-          f"{tuple(target_fake.size())}")
-    data_fake, target_fake = supplier.get_batch_fake(True)
-    print(f"Fake batch (for training G): {tuple(data_fake.size())} -> "
-          f"{tuple(target_fake.size())}")
+    # data_real, target_real = supplier.get_batch_real()
+    # print(f"Real batch: {tuple(data_real.size())} -> {tuple(target_real.size())}")
+    # data_fake, target_fake = supplier.get_batch_fake()
+    # print(f"Fake batch (for training D): {tuple(data_fake.size())} -> "
+    #       f"{tuple(target_fake.size())}")
+    # data_fake, target_fake = supplier.get_batch_fake(True)
+    # print(f"Fake batch (for training G): {tuple(data_fake.size())} -> "
+    #       f"{tuple(target_fake.size())}")
 
-    # create a random noise vector, will be used during training for visualization
-    FIXED_NOISE = get_noise(196, args.latent_dim)
+    train(net_G, net_D, optimizer_G, optimizer_D, criterion, supplier, args.steps,
+          args.num_updates_D, args.num_updates_G)
 
 
 if __name__ == '__main__':
