@@ -252,37 +252,87 @@ def main(args):
 
 if __name__ == '__main__':
 
-    args = argparse.Namespace()
-    # number of workders for dataloader (/!\ set to 4 when you're done
-    # debugging))
-    args.workers = 0
-    # size of the latent vector z, the generator input
-    args.latent_dim = 100
-    # base size of feature maps in discriminator / generator
-    args.num_feature_maps_D = 32
-    args.num_feature_maps_G = 32
-    # learning rate for the discriminator / generator
-    args.lr_D = 0.0002
-    args.lr_G = 0.0002
-    # momentum beta1 for the discriminator / generattor
-    args.beta1_D = 0.5
-    args.beta1_G = 0.5
-    # number of images per batch
-    args.batch_size = 256
-    # number of sub-steps of discriminator / generator optim. at each step
-    args.num_updates_D = 1
-    args.num_updates_G = 1
-    # number of global steps in the training loop
-    args.steps = 8000
-    # number of epochs; leave None fi you set the number of steps (i.e. batch updates)
-    args.epochs = None
+    def parse_args():
+        """Parse command-line arguments."""
+        parser = argparse.ArgumentParser(
+            description="Trains a GAN on the CelebA dataset")
+        # number of workers for dataloader
+        parser.add_argument('--workers', default=torch.multiprocessing.cpu_count(), type=int,
+                            help="number of workers for dataloader (leave None for the maximum number)")
+        # size of the latent vector z, the generator input
+        parser.add_argument('--latent-dim', default=100, type=int,
+                            help="size of the latent vector z, the generator input")
+        # base size of feature maps in discriminator / generator
+        parser.add_argument('--num-feature-maps-D', default=32, type=int,
+                            help="base size of feature maps in discriminator")
+        parser.add_argument('--num-feature-maps-G', default=32, type=int,
+                            help="base size of feature maps in generator")
+        # learning rate for the discriminator / generator
+        parser.add_argument('--lr-D', default=0.002, type=float,
+                            help="learning rate for the discriminator")
+        parser.add_argument('--lr-G', default=0.002, type=float,
+                            help="learning rate for the generator")
+        # momentum beta1 for the discriminator / generattor
+        parser.add_argument('--beta1-D', default=0.5, type=float,
+                            help="momentum beta1 for the discriminator")
+        parser.add_argument('--beta1-G', default=0.5, type=float,
+                            help="momentum beta1 for the generator")
+        # number of images per batch
+        parser.add_argument('--batch-size', default=256, type=int,
+                            help="number of images per batch")
+        # number of sub-steps of discriminator / generator optim. at each step
+        parser.add_argument('--num-updates-D', default=1, type=int,
+                            help="number of sub-steps of discriminator optim. at each step")
+        parser.add_argument('--num-updates-G', default=1, type=int,
+                            help="number of sub-steps of generator optim. at each step")
+        # number of global steps in the training loop
+        parser.add_argument('--steps', default=8000, type=int,
+                            help="number of global steps in the training loop")
+        parser.add_argument('--epochs', default=None, type=int,
+                            help="number of epochs; leave None if you set the number of steps (i.e. batch updates")
+        # do not log metrics to tensorboard
+        parser.add_argument('--no-tensorboard', action='store_true',
+                            help="if specified, do not log metrics to tensorboard")
+        args = parser.parse_args()
+        if args.epochs is None:
+            args.epochs = (args.steps * args.batch_size) / (args.num_updates_D * 202000)
+        else:
+            args.steps = int(args.epochs * args.num_updates_D * 202000 / args.batch_size)
 
-    if args.epochs is None:
-        args.epochs = (args.steps * args.batch_size) / (args.num_updates_D * 202000)
-    else:
-        args.steps = int(args.epochs * args.num_updates_D * 202000 / args.batch_size)
-    # if False, log to tensorboard
-    args.no_tensorboard = False
+        return args
+
+    args = parse_args()
+    # args = argparse.Namespace()
+    # number of workers for dataloader (/!\ set to None when you're done
+    # debugging))
+    # args.workers = 0
+    # # size of the latent vector z, the generator input
+    # args.latent_dim = 100
+    # # base size of feature maps in discriminator / generator
+    # args.num_feature_maps_D = 32
+    # args.num_feature_maps_G = 32
+    # # learning rate for the discriminator / generator
+    # args.lr_D = 0.0002
+    # args.lr_G = 0.0002
+    # # momentum beta1 for the discriminator / generator
+    # args.beta1_D = 0.5
+    # args.beta1_G = 0.5
+    # # number of images per batch
+    # args.batch_size = 256
+    # # number of sub-steps of discriminator / generator optim. at each step
+    # args.num_updates_D = 1
+    # args.num_updates_G = 1
+    # # number of global steps in the training loop
+    # args.steps = 8000
+    # # number of epochs; leave None fi you set the number of steps (i.e. batch updates)
+    # args.epochs = None
+
+    # if args.epochs is None:
+    #     args.epochs = (args.steps * args.batch_size) / (args.num_updates_D * 202000)
+    # else:
+    #     args.steps = int(args.epochs * args.num_updates_D * 202000 / args.batch_size)
+    # # if False, log to tensorboard
+    # args.no_tensorboard = False
 
     np.random.seed(42)  # random seed for reproducibility
     torch.manual_seed(42)
