@@ -15,9 +15,10 @@ import torch.utils.data
 import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 import torchvision.utils as vutils
+from torch.utils.tensorboard import SummaryWriter
 
 from gans import Generator, Discriminator, init_weights
-
+from train_utils import *
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 if device.type == 'cuda':
@@ -101,7 +102,7 @@ def train(net_G, net_D, optimizer_G, optimizer_D, criterion, data_supplier, step
     """Full training loop."""
 
     print("Training on", 'GPU' if device.type == 'cuda' else 'CPU')
-    images_list = []
+    gens_list = []
     G_losses = []
     D_losses = []
     # the minimum generator G loss
@@ -173,17 +174,18 @@ def train(net_G, net_D, optimizer_G, optimizer_D, criterion, data_supplier, step
             # generate images from the fixed noise
             with torch.no_grad():
                 data_fake = net_G(FIXED_NOISE).detach().cpu()
-            images_list.append(vutils.make_grid(data_fake, padding=2, normalize=True,
-                                                nrow=14))
+            grid = vutils.make_grid(data_fake, padding=2, normalize=True, nrow=14)
+            gens_list.append(grid)
+
             if writer:
-                writer.add_image('Generated', data_fake, step)
+                writer.add_image('Generated', grid, step)
             # plt.figure(figsize=(8,8))
-            # plt.imshow(np.transpose(images_list[-1], (1, 2, 0)))
+            # plt.imshow(np.transpose(gens_list[-1], (1, 2, 0)))
             # plt.axis('off')
             # plt.show()
 
     print("\n======> Done. Total time {:d}s\t".format(time.time() - tic))
-    return G_losses, D_losses
+    return G_losses, D_losses, gens_list
 
 
 def train_from_checkpoint(checkpoint, **kwargs):
@@ -232,8 +234,20 @@ def main(args):
     # print(f"Fake batch (for training G): {tuple(data_fake.size())} -> "
     #       f"{tuple(target_fake.size())}")
 
+    # experiment name for tensorboard
+    hparams = get_hparams_dict(args,
+                               ignore_keys={'no_tensorboard', 'workers', 'epochs'})
+    expe_name = get_experiment_name(prefix='__CelebA__', hparams=hparams)
+
+    if args.no_tensorboard:
+        writer = None
+    else:
+        writer = SummaryWriter(comment=expe_name, flush_secs=10)
+        # log sample data and net graph in tensorboard
+        #@todo
+
     train(net_G, net_D, optimizer_G, optimizer_D, criterion, supplier, args.steps,
-          args.num_updates_D, args.num_updates_G)
+          args.num_updates_D, args.num_updates_G, writer)
 
 
 if __name__ == '__main__':
@@ -267,6 +281,8 @@ if __name__ == '__main__':
         args.epochs = (args.steps * args.batch_size) / (args.num_updates_D * 202000)
     else:
         args.steps = int(args.epochs * args.num_updates_D * 202000 / args.batch_size)
+    # if False, log to tensorboard
+    args.no_tensorboard = False
 
     np.random.seed(42)  # random seed for reproducibility
     torch.manual_seed(42)
