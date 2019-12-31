@@ -118,15 +118,16 @@ def train(net_G, net_D, optimizer_G, optimizer_D, criterion, data_supplier, step
     for step in range(1, steps+1):
 
         for _ in range(num_updates_D):
-            # update the discriminator network D:
-            # maximize log(D(x)) + log(1 - D(G(z)))
+            # Update the discriminator network D:
+            # maximize for D: log(D(x)) + log(1 - D(G(z)))
             net_D.zero_grad()
             # get batches
             data_real, target_real = data_supplier.get_batch_real()
             data_fake, target_fake = data_supplier.get_batch_fake(False)
             # forward pass
+            # note: use detach() on the fake batch in order to update only D
             out_real = net_D(data_real).view(-1)
-            out_fake = net_D(data_fake).view(-1)
+            out_fake = net_D(data_fake.detach()).view(-1)
             # sum of criterions on real and fake samples
             loss_D = criterion(out_real, target_real) + criterion(out_fake, target_fake)
             # backward pass and parameters update
@@ -145,10 +146,11 @@ def train(net_G, net_D, optimizer_G, optimizer_D, criterion, data_supplier, step
             global_cnt_G += 1
 
         for _ in range(num_updates_G):
-            # update the generator network G:
-            # maximize log(D(G(z)))
+            # Update the generator network G:
+            # maximize for G: log(D(G(z)))
             net_G.zero_grad()
             # get batches
+            # note: fake labels are real for G loss
             data_fake, target_fake = data_supplier.get_batch_fake(True)
             # forward pass
             out_fake = net_D(data_fake).view(-1)
@@ -173,8 +175,8 @@ def train(net_G, net_D, optimizer_G, optimizer_D, criterion, data_supplier, step
         if (step-1) % 100 == 0:
             # generate images from the fixed noise
             with torch.no_grad():
-                data_fake = net_G(FIXED_NOISE).detach().cpu()
-            grid = vutils.make_grid(data_fake, padding=2, normalize=True, nrow=14)
+                fake = net_G(FIXED_NOISE).detach().cpu()
+            grid = vutils.make_grid(fake, padding=2, normalize=True, nrow=14)
             gens_list.append(grid)
 
             if writer:
