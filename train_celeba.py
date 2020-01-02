@@ -94,7 +94,7 @@ class DataSupplier():
             # if we train the generator G, then set training targets to real to
             # to fool the discriminator D.
             target_fake = torch.full((data_fake.size(0),), self.REAL_LABEL)
-        return data_fake, target_fake
+        return data_fake.to(device), target_fake.to(device)
 
 
 def train(net_G, net_D, optimizer_G, optimizer_D, criterion, data_supplier, steps, num_updates_D,
@@ -105,8 +105,6 @@ def train(net_G, net_D, optimizer_G, optimizer_D, criterion, data_supplier, step
     gens_list = []
     G_losses = []
     D_losses = []
-    # the minimum generator G loss
-    min_G_loss = float('inf')
     step = 1
     # create a random noise vector, will be used during training for visualization
     FIXED_NOISE = get_noise(196, args.latent_dim)
@@ -186,7 +184,7 @@ def train(net_G, net_D, optimizer_G, optimizer_D, criterion, data_supplier, step
             # plt.axis('off')
             # plt.show()
 
-    print("\n======> Done. Total time {:d}s\t".format(time.time() - tic))
+    print("\n======> Done. Total time {}s\t".format(time.time() - tic))
     return G_losses, D_losses, gens_list
 
 
@@ -211,8 +209,8 @@ def main(args):
     # plt.show()
     print(args)
 
-    net_G = Generator(args.latent_dim, args.num_feature_maps_G)
-    net_D = Discriminator(args.num_feature_maps_D)
+    net_G = Generator(args.latent_dim, args.num_feature_maps_G).to(device)
+    net_D = Discriminator(args.num_feature_maps_D).to(device)
     # initialize the weights of the networks
     net_G.apply(init_weights)
     net_D.apply(init_weights)
