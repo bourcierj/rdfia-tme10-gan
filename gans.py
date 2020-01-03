@@ -57,7 +57,7 @@ class Generator(nn.Module):
         return self.model(input)
 
 
-def init_weights(m):
+def weights_init(m):
     """Initializes module's weights."""
     classname = m.__class__.__name__
     if 'Conv' in classname:
@@ -76,8 +76,8 @@ if __name__ == '__main__':
     net_G = Generator(latent_dim, num_feature_maps_G)
     net_D = Discriminator(num_feature_maps_D)
     # initialize the weights of the networks
-    net_G.apply(init_weights)
-    net_D.apply(init_weights)
+    net_G.apply(weights_init)
+    net_D.apply(weights_init)
 
     # Test the models to check if they have the right shape
     z = torch.zeros(16, latent_dim, 1, 1)

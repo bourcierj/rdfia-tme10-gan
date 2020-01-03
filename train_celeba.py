@@ -17,7 +17,7 @@ import torchvision.transforms as transforms
 import torchvision.utils as vutils
 from torch.utils.tensorboard import SummaryWriter
 
-from gans import Generator, Discriminator, init_weights
+from gans import Generator, Discriminator, weights_init
 from train_utils import *
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -109,9 +109,9 @@ def train(net_G, net_D, optimizer_G, optimizer_D, criterion, data_supplier, step
     # create a random noise vector, will be used during training for visualization
     FIXED_NOISE = get_noise(196, args.latent_dim)
     tic = time.time()  # start time
-    # global counter value to record for G / D in tensorboard
-    global_cnt_G = 1
-    global_cnt_D = 1
+    # updates counter for G / D for writing in tensorboard
+    updates_cnt_G = 1
+    updates_cnt_D = 1
 
     for step in range(1, steps+1):
 
@@ -138,10 +138,10 @@ def train(net_G, net_D, optimizer_G, optimizer_D, criterion, data_supplier, step
             avg_output_fake = out_fake.mean().item()
             D_losses.append(loss_D.item())
             if writer:
-                writer.add_scalar("Loss_D", loss_D.item(), global_cnt_G)
-                writer.add_scalar("Mean_Real_D(x)", avg_output_real, global_cnt_G)
-                writer.add_scalar("Mean_Fake_D(G(z))", avg_output_fake, global_cnt_G)
-            global_cnt_G += 1
+                writer.add_scalar("Loss_D", loss_D.item(), updates_cnt_D)
+                writer.add_scalar("Mean_Real_D(x)", avg_output_real, updates_cnt_D)
+                writer.add_scalar("Mean_Fake_D(G(z))", avg_output_fake, updates_cnt_D)
+            updates_cnt_D += 1
 
         for _ in range(num_updates_G):
             # Update the generator network G:
@@ -162,8 +162,8 @@ def train(net_G, net_D, optimizer_G, optimizer_D, criterion, data_supplier, step
             # compute and save metrics, log to tensorboard
             G_losses.append(loss_G.item())
             if writer:
-                writer.add_scalar("Loss_G", loss_G.item(), global_cnt_D)
-            global_cnt_D += 1
+                writer.add_scalar("Loss_G", loss_G.item(), updates_cnt_G)
+            updates_cnt_G += 1
 
         if (step-1) % 25 == 0:
             # log training metrics
@@ -212,8 +212,8 @@ def main(args):
     net_G = Generator(args.latent_dim, args.num_feature_maps_G).to(device)
     net_D = Discriminator(args.num_feature_maps_D).to(device)
     # initialize the weights of the networks
-    net_G.apply(init_weights)
-    net_D.apply(init_weights)
+    net_G.apply(weights_init)
+    net_D.apply(weights_init)
 
     # create the criterion function for the discriminator:
     # binary-cross entropy loss
@@ -237,7 +237,7 @@ def main(args):
     # experiment name for tensorboard
     hparams = get_hparams_dict(args,
                                ignore_keys={'no_tensorboard', 'workers', 'epochs'})
-    expe_name = get_experiment_name(prefix='__CelebA__', hparams=hparams)
+    expe_name = get_experiment_name(prefix='__DCGAN__CelebA-32__', hparams=hparams)
 
     if args.no_tensorboard:
         writer = None
