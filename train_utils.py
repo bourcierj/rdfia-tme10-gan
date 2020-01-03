@@ -2,7 +2,7 @@ import torch
 from pathlib import Path
 
 
-class CheckpointState():
+class Checkpoint():
     """A model checkpoint state."""
     def __init__(self, path='./checkpt.pt', **kwargs):
 
@@ -136,7 +136,7 @@ def test_checkpoint_state():
 
     module = nn.Linear(2, 2)
     optimizer = optim.SGD(module.parameters(), lr=0.01)
-    checkpoint = CheckpointState(path='./checkpt_test.pt', module=module,
+    checkpoint = Checkpoint(path='./checkpt_test.pt', module=module,
                                  optimizer=optimizer, epoch=0)
     checkpoint.save()
     checkpoint.save(suffix='_best')
@@ -144,7 +144,7 @@ def test_checkpoint_state():
     print('checkpoint state dict:')
     print(checkpoint.state_dict(), '\n')
     optimizer = optim.SGD(module.parameters(), lr=0.02)
-    checkpoint2 = CheckpointState(path='./checkpt_test_best.pt', module=module,
+    checkpoint2 = Checkpoint(path='./checkpt_test_best.pt', module=module,
                                   optimizer=optimizer, epoch=0)
     print('checkpoint2 state dict (before load):')
     print(checkpoint2.state_dict(), '\n')
