@@ -53,6 +53,19 @@ class Checkpoint():
         state_dict = state_dict.copy()
         for attr in self.kwattrs:
             # this will raise a key error if the state dicts aren't compatible
+            # To DELETE
+            try:
+                for (k, v) in getattr(self, attr).state_dict().items():
+                    if isinstance(v, torch.Tensor):
+                        # print('tensor found')
+                        other_v = state_dict[attr][k]
+                        # print(k)
+                        if torch.allclose(v, other_v):
+                            print("Checkpoint.load:Warning: elements '{}' are equal between loaded state dict and original")
+            except AttributeError:
+                if getattr(self, attr) == state_dict[attr]:
+                    print("Checkpoint.load:Warning: elements '{}' are equal between loaded state dict and original")
+
             try:
                 try:
                     getattr(self, attr).load_state_dict(state_dict.pop(attr))
@@ -137,7 +150,7 @@ def test_checkpoint_state():
     module = nn.Linear(2, 2)
     optimizer = optim.SGD(module.parameters(), lr=0.01)
     checkpoint = Checkpoint(path='./checkpt_test.pt', module=module,
-                                 optimizer=optimizer, epoch=0)
+                                 optimizer=optimizer, epoch=10)
     checkpoint.save()
     checkpoint.save(suffix='_best')
     module = nn.Linear(2, 2)
