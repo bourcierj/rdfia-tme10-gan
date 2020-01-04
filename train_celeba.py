@@ -98,7 +98,7 @@ class DataSupplier():
 
 
 def train(net_G, net_D, optimizer_G, optimizer_D, criterion, data_supplier, steps, num_updates_D,
-          num_updates_G, writer=None):
+          num_updates_G, writer=None, checkpoint_path=None, start_step=1):
     """Full training loop."""
 
     print("Training on", 'GPU' if device.type == 'cuda' else 'CPU')
@@ -112,8 +112,12 @@ def train(net_G, net_D, optimizer_G, optimizer_D, criterion, data_supplier, step
     # updates counter for G / D for writing in tensorboard
     updates_cnt_G = 1
     updates_cnt_D = 1
+    # checkpointing
+    checkpoint = Checkpoint(path=checkpoint_path, net_G=net_G, net_D=net_D,
+                            optimizer_G=optimizer_G, optimizer_D=optimizer_D,
+                            step=1)
 
-    for step in range(1, steps+1):
+    for step in range(start_step, steps+1):
 
         for _ in range(num_updates_D):
             # Update the discriminator network D:
@@ -184,15 +188,19 @@ def train(net_G, net_D, optimizer_G, optimizer_D, criterion, data_supplier, step
             # plt.axis('off')
             # plt.show()
 
+            # save checkpoint
+            checkpoint.save()
+
     print("\n======> Done. Total time {}s\t".format(time.time() - tic))
+    checkpoint.save(f'_end_step={steps}')
     return G_losses, D_losses, gens_list
 
 
-def train_from_checkpoint(checkpoint, **kwargs):
-    """Train from an existing checkpoint."""
-    net_G, net_D = checkpoint.net_G, checkpoint.net_D
-    optimizer_G, optimizer_D = checkpoint.optimizer_G, checkpoint.optimizer_D
-    return train(net_G, net_D, optimizer_G, optimizer_D, **kwargs)
+# def train_from_checkpoint(checkpoint, **kwargs):
+#     """Train from an existing checkpoint."""
+#     net_G, net_D = checkpoint.net_G, checkpoint.net_D
+#     optimizer_G, optimizer_D = checkpoint.optimizer_G, checkpoint.optimizer_D
+#     return train(net_G, net_D, optimizer_G, optimizer_D, **kwargs)
 
 
 def main(args):
@@ -238,6 +246,8 @@ def main(args):
     hparams = get_hparams_dict(args,
                                ignore_keys={'no_tensorboard', 'workers', 'epochs'})
     expe_name = get_experiment_name(prefix='__DCGAN__CelebA-32__', hparams=hparams)
+    # path where to save the model's checkpoints
+    savepath = Path('./checkpoints/checkpt.pt')
 
     if args.no_tensorboard:
         writer = None
@@ -247,7 +257,7 @@ def main(args):
         #@todo
 
     train(net_G, net_D, optimizer_G, optimizer_D, criterion, supplier, args.steps,
-          args.num_updates_D, args.num_updates_G, writer)
+          args.num_updates_D, args.num_updates_G, writer, savepath)
 
 
 if __name__ == '__main__':
