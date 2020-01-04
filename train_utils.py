@@ -35,12 +35,14 @@ class Checkpoint():
         with savepath.open('wb') as fp:
             torch.save(self.state_dict(), fp)
 
-    def load(self):
-        """Deserializes and maps the checkpoint to the available device."""
+    def load(self, map_location=None):
+        """Deserializes and maps the checkpoint to the available device.
+        Args:
+            map_location: a :class:`torch.device` specifying how to remap storage
+            locations
+        """
         with self.path.open('rb') as fp:
-            state_dict = torch.load(
-                fp, map_location=torch.device('cuda' if torch.cuda.is_available()
-                                              else 'cpu'))
+            state_dict = torch.load(fp, map_location)
             self.load_state_dict(state_dict)
 
     def load_state_dict(self, state_dict):
