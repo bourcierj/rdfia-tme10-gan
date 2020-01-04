@@ -199,11 +199,17 @@ def train(net_G, net_D, optimizer_G, optimizer_D, criterion, data_supplier, step
     return G_losses, D_losses, gens_list
 
 
-# def train_from_checkpoint(checkpoint, **kwargs):
-#     """Train from an existing checkpoint."""
-#     net_G, net_D = checkpoint.net_G, checkpoint.net_D
-#     optimizer_G, optimizer_D = checkpoint.optimizer_G, checkpoint.optimizer_D
-#     return train(net_G, net_D, optimizer_G, optimizer_D, **kwargs)
+def train_from_checkpoint(checkpoint, criterion, data_supplier, steps, num_updates_D,
+                          num_updates_G, writer=None, savepath=None):
+    """Train from an existing checkpoint."""
+    kwargs = locals()
+    net_G, net_D = checkpoint.net_G, checkpoint.net_D
+    optimizer_G, optimizer_D = checkpoint.optimizer_G, checkpoint.optimizer_D
+    start_step = checkpoint.step
+    kwargs.pop('checkpoint')
+    # print('Kwargs keys:', tuple(kwargs.keys()))
+    # return
+    return train(net_G, net_D, optimizer_G, optimizer_D, start_step=start_step, **kwargs)
 
 
 def main(args):
@@ -249,8 +255,12 @@ def main(args):
     hparams = get_hparams_dict(args,
                                ignore_keys={'no_tensorboard', 'workers', 'epochs'})
     expe_name = get_experiment_name(prefix='__DCGAN__CelebA-32__', hparams=hparams)
-    # path where to save the model's checkpoints
-    savepath = Path('./checkpoints/checkpt.pt')
+
+    # path where to save checkpoints
+    if args.no_checkpointing:
+        savepath = None
+    else:
+        savepath = Path('./checkpoints/__DCGAN_CelebA-32__checkpt.pt') \
 
     if args.no_tensorboard:
         writer = None
@@ -258,9 +268,24 @@ def main(args):
         writer = SummaryWriter(comment=expe_name, flush_secs=10)
         # log sample data and net graph in tensorboard
         #@todo
-
-    train(net_G, net_D, optimizer_G, optimizer_D, criterion, supplier, args.steps,
-          args.num_updates_D, args.num_updates_G, writer, savepath)
+    if args.from_checkpoint:
+        checkpoint = Checkpoint(path=args.from_checkpoint, net_G=net_G, net_D=net_D,
+                                optimizer_G=optimizer_G, optimizer_D=optimizer_D,
+                                step=None)
+        # sd_init = checkpoint.state_dict()
+        # # print('Chkpt state dict before load: \n\n{} \n'.format(sd_init))
+        checkpoint.load(map_location=device)
+        checkpoint.step = 8001
+        # sd_loaded = checkpoint.state_dict()
+        # print(checkpoint.net_G.state_dict().keys())
+        # # print('Chkpt state dict after load: \n\n{} \n'.format(sd_loaded))
+        # assert(not torch.allclose(sd_init['net_G']['model.0.weight'], sd_loaded['net_G']['model.0.weight']))
+        # assert(not torch.allclose(sd_init['net_G']['model.3.weight'], sd_loaded['net_G']['model.3.weight']))
+        train_from_checkpoint(checkpoint, criterion, supplier, args.steps,
+                              args.num_updates_D, args.num_updates_G, writer, savepath)
+    else:
+        train(net_G, net_D, optimizer_G, optimizer_D, criterion, supplier, args.steps,
+              args.num_updates_D, args.num_updates_G, writer, savepath)
 
 
 if __name__ == '__main__':
@@ -306,6 +331,10 @@ if __name__ == '__main__':
         # do not log metrics to tensorboard
         parser.add_argument('--no-tensorboard', action='store_true',
                             help="if specified, do not log metrics to tensorboard")
+        parser.add_argument('--from-checkpoint', default=None, type=str,
+                            help='resume training from the checkpoint at the specified path')
+        parser.add_argument('--no-checkpointing', action='store_true',
+                            help='if specified, do not save checkpoints')
         args = parser.parse_args()
         if args.epochs is None:
             args.epochs = (args.steps * args.batch_size) / (args.num_updates_D * 202000)
