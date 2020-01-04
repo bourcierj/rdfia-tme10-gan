@@ -98,7 +98,7 @@ class DataSupplier():
 
 
 def train(net_G, net_D, optimizer_G, optimizer_D, criterion, data_supplier, steps, num_updates_D,
-          num_updates_G, writer=None, checkpoint_path=None, start_step=1):
+          num_updates_G, writer=None, savepath=None, start_step=1):
     """Full training loop."""
 
     print("Training on", 'GPU' if device.type == 'cuda' else 'CPU')
@@ -113,9 +113,9 @@ def train(net_G, net_D, optimizer_G, optimizer_D, criterion, data_supplier, step
     updates_cnt_G = 1
     updates_cnt_D = 1
     # checkpointing
-    checkpoint = Checkpoint(path=checkpoint_path, net_G=net_G, net_D=net_D,
+    checkpoint = Checkpoint(path=savepath, net_G=net_G, net_D=net_D,
                             optimizer_G=optimizer_G, optimizer_D=optimizer_D,
-                            step=1)
+                            step=start_step) if savepath else None
 
     for step in range(start_step, steps+1):
 
@@ -187,12 +187,15 @@ def train(net_G, net_D, optimizer_G, optimizer_D, criterion, data_supplier, step
             # plt.imshow(np.transpose(gens_list[-1], (1, 2, 0)))
             # plt.axis('off')
             # plt.show()
-
-            # save checkpoint
-            checkpoint.save()
+            if checkpoint:
+                # save checkpoint
+                checkpoint.step = step
+                checkpoint.save()
 
     print("\n======> Done. Total time {}s\t".format(time.time() - tic))
-    checkpoint.save(f'_end_step={steps}')
+    if checkpoint:
+        checkpoint.step = steps + 1
+        checkpoint.save(f'_end_step={steps}')
     return G_losses, D_losses, gens_list
 
 
