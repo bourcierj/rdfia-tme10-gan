@@ -5,7 +5,8 @@
 *.pth
 *.checkpt
 /checkpoints
-/rsync_exclude.txt
+rsync_exclude.txt
+sync.sh
 TODO.md
 /pytorch_models/
 /papers/
