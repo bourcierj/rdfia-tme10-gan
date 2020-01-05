@@ -19,6 +19,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from gans import Generator32, Discriminator32, weights_init
 from train_utils import *
+from plot_utils import *
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 if device.type == 'cuda':
@@ -98,7 +99,7 @@ class DataSupplier():
 
 
 def train(net_G, net_D, optimizer_G, optimizer_D, criterion, data_supplier, steps, num_updates_D,
-          num_updates_G, writer=None, savepath=None, start_step=1):
+          num_updates_G, writer=None, savepath=None, figures_path=None, start_step=1):
     """Full training loop."""
 
     print("Training on", 'GPU' if device.type == 'cuda' else 'CPU')
@@ -194,7 +195,7 @@ def train(net_G, net_D, optimizer_G, optimizer_D, criterion, data_supplier, step
                 # save checkpoint
                 checkpoint.step = step
                 checkpoint.save()
-                vutils.save_image(grid, savepath/'images/step={}.png'.format(step))
+                vutils.save_image(grid, figures_path/'images/step={}.png'.format(step))
 
 
     print("\n======> Done. Total time {}s\t".format(time.time() - tic))
@@ -205,7 +206,7 @@ def train(net_G, net_D, optimizer_G, optimizer_D, criterion, data_supplier, step
 
 
 def train_from_checkpoint(checkpoint, criterion, data_supplier, steps, num_updates_D,
-                          num_updates_G, writer=None, savepath=None):
+                          num_updates_G, writer=None, savepath=None, figures_path=None):
     """Train from an existing checkpoint."""
     kwargs = locals()
     net_G, net_D = checkpoint.net_G, checkpoint.net_D
@@ -258,23 +259,26 @@ def main(args):
 
     # experiment name for tensorboard
     hparams = get_hparams_dict(args,
-                               ignore_keys={'no_tensorboard', 'workers', 'epochs'})
+                               ignore_keys={'no_tensorboard', 'workers', 'epochs',
+                                            'from_checkpoint', 'no_save'})
     expe_name = get_experiment_name(prefix='__DCGAN__CelebA-32__', hparams=hparams)
 
     # path where to save checkpoints
-    if args.no_checkpointing:
+    if args.no_save:
         savepath = None
+        figures_path = None
     else:
         savepath = Path('./checkpoints/__DCGAN__CelebA-32__checkpt.pt')
-        # add an images directory to store generated images
-        (savepath/'images').mkdir(parents=True, exists_ok=True)
-
+        # will store figures (generated images and metrics plots) into a directory
+        figures_path = Path('./figures/')/expe_name
+        (figures_path/'images').mkdir(parents=True, exist_ok=True)
     if args.no_tensorboard:
         writer = None
     else:
         writer = SummaryWriter(comment=expe_name, flush_secs=10)
         # log sample data and net graph in tensorboard
         #@todo
+
     if args.from_checkpoint:
         checkpoint = Checkpoint(path=args.from_checkpoint, net_G=net_G, net_D=net_D,
                                 optimizer_G=optimizer_G, optimizer_D=optimizer_D,
@@ -288,11 +292,18 @@ def main(args):
         # # print('Chkpt state dict after load: \n\n{} \n'.format(sd_loaded))
         # assert(not torch.allclose(sd_init['net_G']['model.0.weight'], sd_loaded['net_G']['model.0.weight']))
         # assert(not torch.allclose(sd_init['net_G']['model.3.weight'], sd_loaded['net_G']['model.3.weight']))
-        train_from_checkpoint(checkpoint, criterion, supplier, args.steps,
-                              args.num_updates_D, args.num_updates_G, writer, savepath)
+        images_list, G_losses, D_losses, D_reals, D_fakes = \
+            train_from_checkpoint(checkpoint, criterion, supplier, args.steps,
+                                  args.num_updates_D, args.num_updates_G, writer,
+                                  savepath, figures_path)
     else:
-        train(net_G, net_D, optimizer_G, optimizer_D, criterion, supplier, args.steps,
-              args.num_updates_D, args.num_updates_G, writer, savepath)
+        images_list, G_losses, D_losses, D_reals, D_fakes = \
+            train(net_G, net_D, optimizer_G, optimizer_D, criterion, supplier,
+                  args.steps, args.num_updates_D, args.num_updates_G, writer,
+                  savepath, figures_path)
+
+    if figures_path:
+        show_metrics(D_losses, G_losses, D_reals, D_fakes, savepath=figures_path/'metrics.svg')
 
 
 if __name__ == '__main__':
@@ -340,8 +351,8 @@ if __name__ == '__main__':
                             help="if specified, do not log metrics to tensorboard")
         parser.add_argument('--from-checkpoint', default=None, type=str,
                             help='resume training from the checkpoint at the specified path')
-        parser.add_argument('--no-checkpointing', action='store_true',
-                            help='if specified, do not save checkpoints')
+        parser.add_argument('--no-save', action='store_true',
+                            help='if specified, do not save checkpoints or figures')
         args = parser.parse_args()
         if args.epochs is None:
             args.epochs = (args.steps * args.batch_size) / (args.num_updates_D * 202000)
