@@ -37,7 +37,7 @@ def get_dataloader(batch_size, num_workers):
     dataloader = torch.utils.data.DataLoader(
         dataset, batch_size=batch_size, shuffle=True,
         pin_memory=device.type == 'cuda',
-        num_workers=num_workers if num_workers is not None \
+        num_workers=num_workers if num_workers
             else torch.multiprocessing.cpu_count())
 
     return dataloader
@@ -102,9 +102,11 @@ def train(net_G, net_D, optimizer_G, optimizer_D, criterion, data_supplier, step
     """Full training loop."""
 
     print("Training on", 'GPU' if device.type == 'cuda' else 'CPU')
-    gens_list = []
-    G_losses = []
+    images_list = []
     D_losses = []
+    G_losses = []
+    D_reals = []
+    D_fakes = []
     step = 1
     # create a random noise vector, will be used during training for visualization
     FIXED_NOISE = get_noise(196, args.latent_dim)
@@ -138,13 +140,15 @@ def train(net_G, net_D, optimizer_G, optimizer_D, criterion, data_supplier, step
             optimizer_D.zero_grad()
 
             # compute and save metrics, log to tensorboard
-            avg_output_real = out_real.mean().item()
-            avg_output_fake = out_fake.mean().item()
+            avg_D_real = out_real.mean().item()
+            avg_D_fake = out_fake.mean().item()
             D_losses.append(loss_D.item())
+            D_reals.append(avg_D_real)
+            D_fakes.append(avg_D_fake)
             if writer:
                 writer.add_scalar("Loss_D", loss_D.item(), updates_cnt_D)
-                writer.add_scalar("Mean_Real_D(x)", avg_output_real, updates_cnt_D)
-                writer.add_scalar("Mean_Fake_D(G(z))", avg_output_fake, updates_cnt_D)
+                writer.add_scalar("Mean_Real_D(x)", avg_D_real, updates_cnt_D)
+                writer.add_scalar("Mean_Fake_D(G(z))", avg_D_fake, updates_cnt_D)
             updates_cnt_D += 1
 
         for _ in range(num_updates_G):
@@ -172,31 +176,32 @@ def train(net_G, net_D, optimizer_G, optimizer_D, criterion, data_supplier, step
         if (step-1) % 25 == 0:
             # log training metrics
             print("[{:5d}/{:5d}]\tLoss_D: {:.4f}\tLoss_G: {:.4f}\tD(x): {:.4f}\tD(G(z)): {:.4f}"
-                  .format(step, steps, loss_D.item(), loss_G.item(), avg_output_real,
-                          avg_output_fake))
+                  .format(step, steps, loss_D.item(), loss_G.item(), avg_D_real,
+                          avg_D_fake))
         if (step-1) % 100 == 0:
             # generate images from the fixed noise
             with torch.no_grad():
                 fake = net_G(FIXED_NOISE).detach().cpu()
             grid = vutils.make_grid(fake, padding=2, normalize=True, nrow=14)
-            gens_list.append(grid)
-
+            images_list.append(grid)
             if writer:
                 writer.add_image('Generated', grid, step)
             # plt.figure(figsize=(8,8))
-            # plt.imshow(np.transpose(gens_list[-1], (1, 2, 0)))
+            # plt.imshow(np.transpose(images_list[-1], (1, 2, 0)))
             # plt.axis('off')
             # plt.show()
             if checkpoint:
                 # save checkpoint
                 checkpoint.step = step
                 checkpoint.save()
+                vutils.save_image(grid, savepath/'images/step={}.png'.format(step))
+
 
     print("\n======> Done. Total time {}s\t".format(time.time() - tic))
     if checkpoint:
         checkpoint.step = steps + 1
         checkpoint.save(f'_end_step={steps}')
-    return G_losses, D_losses, gens_list
+    return images_list, G_losses, D_losses, D_reals, D_fakes
 
 
 def train_from_checkpoint(checkpoint, criterion, data_supplier, steps, num_updates_D,
@@ -260,7 +265,9 @@ def main(args):
     if args.no_checkpointing:
         savepath = None
     else:
-        savepath = Path('./checkpoints/__DCGAN__CelebA-64__checkpt.pt') \
+        savepath = Path('./checkpoints/__DCGAN__CelebA-64__checkpt.pt')
+        # add an images directory to store generated images
+        (savepath/'images').mkdir(parents=True, exists_ok=True)
 
     if args.no_tensorboard:
         writer = None
@@ -293,10 +300,10 @@ if __name__ == '__main__':
     def parse_args():
         """Parse command-line arguments."""
         parser = argparse.ArgumentParser(
-            description="Trains a GAN on the CelebA dataset")
+            description="Trains a DCGAN on the CelebA-64 dataset")
         # number of workers for dataloader
-        parser.add_argument('--workers', default=torch.multiprocessing.cpu_count(), type=int,
-                            help="number of workers for dataloader (leave None for the maximum number)")
+        parser.add_argument('--workers', default=None, type=int,
+                            help="number of workers for dataloader (defaults to None: maximum number of cores)")
         # size of the latent vector z, the generator input
         parser.add_argument('--latent-dim', default=100, type=int,
                             help="size of the latent vector z, the generator input")
