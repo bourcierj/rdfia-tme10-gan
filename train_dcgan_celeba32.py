@@ -17,7 +17,7 @@ import torchvision.transforms as transforms
 import torchvision.utils as vutils
 from torch.utils.tensorboard import SummaryWriter
 
-from gans import Generator, Discriminator, weights_init
+from gans import Generator32, Discriminator32, weights_init
 from train_utils import *
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -32,7 +32,7 @@ def get_dataloader(batch_size, num_workers):
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     ])
     # we can use an image folder dataset
-    dataset = datasets.ImageFolder(root='data/celeba', transform=tfms)
+    dataset = datasets.ImageFolder(root='data/celeba32', transform=tfms)
 
     dataloader = torch.utils.data.DataLoader(
         dataset, batch_size=batch_size, shuffle=True,
@@ -226,8 +226,8 @@ def main(args):
     # plt.show()
     print(args)
 
-    net_G = Generator(args.latent_dim, args.num_feature_maps_G).to(device)
-    net_D = Discriminator(args.num_feature_maps_D).to(device)
+    net_G = Generator32(args.latent_dim, args.num_feature_maps_G).to(device)
+    net_D = Discriminator32(args.num_feature_maps_D).to(device)
     # initialize the weights of the networks
     net_G.apply(weights_init)
     net_D.apply(weights_init)
@@ -260,7 +260,7 @@ def main(args):
     if args.no_checkpointing:
         savepath = None
     else:
-        savepath = Path('./checkpoints/__DCGAN_CelebA-32__checkpt.pt') \
+        savepath = Path('./checkpoints/__DCGAN__CelebA-32__checkpt.pt') \
 
     if args.no_tensorboard:
         writer = None
