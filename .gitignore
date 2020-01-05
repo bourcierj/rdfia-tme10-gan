@@ -1,17 +1,15 @@
 # Project-specific
 
-/data/
 *.pt
 *.pth
 *.checkpt
-/checkpoints
+/data/
+/checkpoints/
+/figures/
+/papers/
 rsync_exclude.txt
 sync.sh
 TODO.md
-/pytorch_models/
-/papers/
-/figures/
-/documents/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
