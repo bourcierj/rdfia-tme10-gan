@@ -1,5 +1,5 @@
-import torch
 from pathlib import Path
+import torch
 
 
 class Checkpoint():
@@ -83,13 +83,26 @@ class Checkpoint():
 
 def get_hparams_dict(args, ignore_keys=set()):
     """Get hyperparameters with values in a dict."""
-    return {key.replace('_', '-'): val for key, val in vars(args).items()
-               if key not in ignore_keys}
+    return {key.replace('_', '-'): val
+            for key, val in vars(args).items() if key not in ignore_keys}
+
+
+# def get_experiment_name(prefix, hparams):
+#     """Generate a string name for the experiment."""
+#     return prefix + '_'.join([f"{key}={val}" for key, val in hparams.items()])
 
 
 def get_experiment_name(prefix, hparams):
-    """Generate a string name for the experiment."""
-    return prefix + '_'.join([f"{key}={val}" for key, val in hparams.items()])
+    """Generate a string name for the experiment.
+    It is intended to be used for saving experiment information to files.
+    The name follows the syntax: runs/CURRENT-DATETIME_HOSTNAME_HYPERPARAMETERS
+    """
+    import socket
+    from datetime import datetime
+    current_time = datetime.now().strftime('%b%d_%H-%M-%S')
+    hparams_string = '_'.join([f"{key}={val}" for key, val in hparams.items()])
+
+    return current_time + '_' + socket.gethostname() + prefix + hparams_string
 
 
 class BestLossTracker():
@@ -174,3 +187,6 @@ def test_checkpoint_state():
 if __name__ == '__main__':
 
     test_checkpoint_state()
+
+    print(get_experiment_name('', {}))
+    print(get_experiment_name('__DCGAN__CelebA-32__', {'lr': 1e-3}))
