@@ -174,12 +174,12 @@ def train(net_G, net_D, optimizer_G, optimizer_D, criterion, data_supplier, step
                 writer.add_scalar("Loss_G", loss_G.item(), updates_cnt_G)
             updates_cnt_G += 1
 
-        if (step-1) % 25 == 0:
+        if (step) % 25 == 0:
             # log training metrics
             print("[{:5d}/{:5d}]\tLoss_D: {:.4f}\tLoss_G: {:.4f}\tD(x): {:.4f}\tD(G(z)): {:.4f}"
                   .format(step, steps, loss_D.item(), loss_G.item(), avg_D_real,
                           avg_D_fake))
-        if (step-1) % 100 == 0:
+        if (step) % 100 == 0:
             # generate images from the fixed noise
             with torch.no_grad():
                 fake = net_G(FIXED_NOISE).detach().cpu()
@@ -268,7 +268,9 @@ def main(args):
         savepath = None
         figures_path = None
     else:
-        savepath = Path('./checkpoints/__DCGAN__CelebA-32__checkpt.pt')
+        savedir = Path('./checkpoints/')/expe_name
+        savedir.mkdir(parents=True, exist_ok=True)
+        savepath = savedir/'checkpt.pt'
         # will store figures (generated images and metrics plots) into a directory
         figures_path = Path('./figures/')/expe_name
         (figures_path/'images').mkdir(parents=True, exist_ok=True)
