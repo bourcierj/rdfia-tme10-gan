@@ -1,6 +1,7 @@
 #!/usr/bin/env sh
 
 # Download CelebA dataset with 32x32 images
+#@TODO: The link is dead now!!! Host it somewhere else
 
 if ! [ -d "data/celeba32/img_align_celeba" ] ; then
     mkdir -p data/celeba32
