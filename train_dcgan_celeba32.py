@@ -99,7 +99,7 @@ class DataSupplier():
 
 
 def train(net_G, net_D, optimizer_G, optimizer_D, criterion, data_supplier, steps, num_updates_D,
-          num_updates_G, writer=None, savepath=None, figures_path=None, start_step=1):
+          num_updates_G, writer=None, savepath=None, figures_dir=None, start_step=1):
     """Full training loop."""
 
     print("Training on", 'GPU' if device.type == 'cuda' else 'CPU')
@@ -195,7 +195,7 @@ def train(net_G, net_D, optimizer_G, optimizer_D, criterion, data_supplier, step
                 # save checkpoint
                 checkpoint.step = step
                 checkpoint.save()
-                vutils.save_image(grid, figures_path/'images/step={}.png'.format(step))
+                vutils.save_image(grid, figures_dir/'images/step={}.png'.format(step))
 
 
     print("\n======> Done. Total time {}s\t".format(time.time() - tic))
@@ -206,7 +206,7 @@ def train(net_G, net_D, optimizer_G, optimizer_D, criterion, data_supplier, step
 
 
 def train_from_checkpoint(checkpoint, criterion, data_supplier, steps, num_updates_D,
-                          num_updates_G, writer=None, savepath=None, figures_path=None):
+                          num_updates_G, writer=None, savepath=None, figures_dir=None):
     """Train from an existing checkpoint."""
     kwargs = locals()
     net_G, net_D = checkpoint.net_G, checkpoint.net_D
@@ -261,23 +261,24 @@ def main(args):
     hparams = get_hparams_dict(args,
                                ignore_keys={'no_tensorboard', 'workers', 'epochs',
                                             'from_checkpoint', 'no_save'})
-    expe_name = get_experiment_name(prefix='__DCGAN__CelebA-32__', hparams=hparams)
+    exp_name = get_experiment_name(prefix='__DCGAN__CelebA-32__', hparams=hparams)
 
     # path where to save checkpoints
     if args.no_save:
         savepath = None
-        figures_path = None
+        figures_dir = None
     else:
-        savedir = Path('./checkpoints/')/expe_name
-        savedir.mkdir(parents=True, exist_ok=True)
+        savedir = Path('./checkpoints/')/exp_name
+        savedir.mkdir(parents=True)
         savepath = savedir/'checkpt.pt'
         # will store figures (generated images and metrics plots) into a directory
-        figures_path = Path('./figures/')/expe_name
-        (figures_path/'images').mkdir(parents=True, exist_ok=True)
+        figures_dir = Path('./figures/')/exp_name
+        (figures_dir/'images').mkdir(parents=True)
+        # (figures_dir/'images').mkdir(parents=True, exist_ok=True)
     if args.no_tensorboard:
         writer = None
     else:
-        writer = SummaryWriter(comment=expe_name, flush_secs=10)
+        writer = SummaryWriter(log_dir='runs/'+ exp_name, flush_secs=10)
         # log sample data and net graph in tensorboard
         #@todo
 
@@ -297,15 +298,15 @@ def main(args):
         images_list, G_losses, D_losses, D_reals, D_fakes = \
             train_from_checkpoint(checkpoint, criterion, supplier, args.steps,
                                   args.num_updates_D, args.num_updates_G, writer,
-                                  savepath, figures_path)
+                                  savepath, figures_dir)
     else:
         images_list, G_losses, D_losses, D_reals, D_fakes = \
             train(net_G, net_D, optimizer_G, optimizer_D, criterion, supplier,
                   args.steps, args.num_updates_D, args.num_updates_G, writer,
-                  savepath, figures_path)
+                  savepath, figures_dir)
 
-    if figures_path:
-        show_metrics(D_losses, G_losses, D_reals, D_fakes, savepath=figures_path/'metrics.svg')
+    if figures_dir:
+        show_metrics(D_losses, G_losses, D_reals, D_fakes, savepath=figures_dir/'metrics.svg')
 
 
 if __name__ == '__main__':
